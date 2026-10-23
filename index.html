@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Outdoor">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="theme-color" content="#f3f6f1">
+<title>Outdoor Weather</title>
+<style>
+  /* Layout: single column, activity chips on top, best window card, then an hourly list with score bars. */
+  :root {
+    --bg: #f3f6f1;
+    --card: #ffffff;
+    --fg: #17241c;
+    --muted: #5d6f63;
+    --line: #dde5dd;
+    --accent: #1f6f4a;
+    --good: #2e8b57;
+    --fair: #c28a12;
+    --poor: #c0473a;
+    color-scheme: light;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #0f1713; --card: #17221b; --fg: #e6efe8; --muted: #93a79a;
+      --line: #24332a; --accent: #5fc58f; --good: #5fc58f; --fair: #e0b04a; --poor: #e8786b;
+      color-scheme: dark;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--fg);
+    font: 16px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    padding-block: max(16px, env(safe-area-inset-top, 0px)) max(24px, env(safe-area-inset-bottom, 0px));
+    padding-left: max(16px, env(safe-area-inset-left, 0px));
+    padding-right: max(16px, env(safe-area-inset-right, 0px));
+  }
+  main { max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
+  h1 { font-size: 1.5rem; margin: 0; letter-spacing: -0.01em; }
+  .sub { color: var(--muted); font-size: 0.9rem; margin: 2px 0 0; }
+  .top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+  button, input { font: inherit; color: inherit; }
+  .btn {
+    border: 1px solid var(--line); background: var(--card); border-radius: 10px;
+    padding: 9px 14px; cursor: pointer; white-space: nowrap;
+  }
+  .btn:focus-visible, .chip:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+  .search { display: flex; gap: 8px; }
+  .search input {
+    flex: 1; min-width: 0; border: 1px solid var(--line); background: var(--card);
+    border-radius: 10px; padding: 9px 12px;
+  }
+  .results { display: flex; flex-direction: column; gap: 6px; }
+  .results button {
+    text-align: left; border: 1px solid var(--line); background: var(--card);
+    border-radius: 10px; padding: 9px 12px; cursor: pointer;
+  }
+  .chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .chips::-webkit-scrollbar { display: none; }
+  .chip {
+    border: 1px solid var(--line); background: var(--card); border-radius: 999px;
+    padding: 8px 14px; cursor: pointer; white-space: nowrap;
+  }
+  .chip[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: var(--bg); font-weight: 600; }
+  .best { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; }
+  .best .label { font-size: 0.78rem; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted); }
+  .best .time { font-size: 1.9rem; font-weight: 700; letter-spacing: -0.02em; margin: 2px 0; font-variant-numeric: tabular-nums; }
+  .best .row { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+  .badge { font-size: 0.85rem; font-weight: 700; padding: 4px 11px; border-radius: 999px; font-variant-numeric: tabular-nums; }
+  .good { color: var(--good); background: color-mix(in srgb, var(--good) 16%, transparent); }
+  .fair { color: var(--fair); background: color-mix(in srgb, var(--fair) 16%, transparent); }
+  .poor { color: var(--poor); background: color-mix(in srgb, var(--poor) 16%, transparent); }
+  .facts { color: var(--muted); font-size: 0.9rem; margin-top: 6px; }
+  .list { background: var(--card); border: 1px solid var(--line); border-radius: 14px; overflow: hidden; }
+  .hour {
+    display: grid; grid-template-columns: 3.2rem 1fr auto; gap: 4px 12px; align-items: center;
+    padding: 10px 14px; border-top: 1px solid var(--line);
+  }
+  .hour:first-child { border-top: 0; }
+  .hour .t { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .hour .bar { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+  .hour .bar i { display: block; height: 100%; border-radius: 4px; }
+  .hour .n { grid-column: 2 / 4; color: var(--muted); font-size: 0.82rem; }
+  .hour .v { font-variant-numeric: tabular-nums; font-weight: 700; min-width: 2.2rem; text-align: right; }
+  .msg { color: var(--muted); padding: 24px 4px; text-align: center; }
+  .err { color: var(--poor); }
+  .foot { color: var(--muted); font-size: 0.78rem; text-align: center; }
+  .foot a { color: inherit; }
+</style>
+</head>
+<body>
+<main>
+  <div class="top">
+    <div>
+      <h1>Outdoor Weather</h1>
+      <p class="sub" id="place">Pick a location to start</p>
+    </div>
+    <button class="btn primary" id="gps" type="button">Use my location</button>
+  </div>
+
+  <form class="search" id="searchForm" autocomplete="off">
+    <input id="q" type="search" placeholder="Search a city" aria-label="Search a city">
+    <button class="btn" type="submit">Search</button>
+  </form>
+  <div class="results" id="results" hidden></div>
+
+  <div class="chips" id="chips" role="group" aria-label="Activity"></div>
+
+  <section id="out"><p class="msg">Allow location or search for a city to see today's best time outside.</p></section>
+
+  <p class="foot">Weather data by <a href="https://open-meteo.com/">Open-Meteo</a>. Scores are estimates based on feels-like temperature, rain chance, wind, UV, cloud cover and visibility.</p>
+</main>
+
+<script>
+(function () {
+  var ACTIVITIES = [
+    { id: "running",    label: "Running",    temp: [8, 16],  wind: 30 },
+    { id: "cycling",    label: "Cycling",    temp: [12, 22], wind: 20 },
+    { id: "hiking",     label: "Hiking",     temp: [10, 20], wind: 30 },
+    { id: "walking",    label: "Walking",    temp: [12, 24], wind: 30 },
+    { id: "picnic",     label: "Picnic",     temp: [18, 27], wind: 25 },
+    { id: "stargazing", label: "Stargazing", temp: [5, 20],  wind: 30 }
+  ];
+
+  var state = { activity: "running", place: null, hours: [] };
+
+  function store(key, val) { try { localStorage.setItem(key, JSON.stringify(val)); } catch (e) {} }
+  function recall(key) { try { return JSON.parse(localStorage.getItem(key)); } catch (e) { return null; } }
+
+  // ---------- scoring ----------
+  function scoreHour(h, a) {
+    var s = 100, notes = [];
+    var lo = a.temp[0], hi = a.temp[1], t = h.feels;
+    if (t < lo) { s -= Math.min(40, (lo - t) * 4); notes.push("Cold"); }
+    else if (t > hi) { s -= Math.min(40, (t - hi) * 4); notes.push("Hot"); }
+
+    s -= (h.rain / 100) * 60;
+    if (h.rain > 30) notes.push("Rain likely (" + h.rain + "%)");
+
+    if (h.wind > a.wind) { s -= Math.min(30, (h.wind - a.wind) * 1.5); notes.push("Windy"); }
+
+    if (a.id !== "stargazing" && h.uv >= 8) { s -= 15; notes.push("High UV"); }
+
+    if (a.id === "stargazing") {
+      if (h.isDay) return { score: 0, note: "Daylight" };
+      s -= (h.cloud / 100) * 60;
+      if (h.cloud > 50) notes.push("Cloudy");
+    }
+
+    if (h.vis < 3) { s -= 10; notes.push("Low visibility"); }
+
+    s = Math.max(0, Math.min(100, Math.round(s)));
+    return { score: s, note: notes.length ? notes.join(", ") : "Great conditions" };
+  }
+
+  function band(s) { return s >= 75 ? "good" : s >= 50 ? "fair" : "poor"; }
+  function bandName(s) { return s >= 75 ? "Good" : s >= 50 ? "Fair" : "Poor"; }
+  function bandColor(s) { return "var(--" + band(s) + ")"; }
+
+  // ---------- data ----------
+  function load(lat, lon, name) {
+    state.place = { lat: lat, lon: lon, name: name };
+    store("ow-place", state.place);
+    document.getElementById("place").textContent = name;
+    document.getElementById("out").innerHTML = '<p class="msg">Loading forecast...</p>';
+
+    var url = "https://api.open-meteo.com/v1/forecast?latitude=" + lat + "&longitude=" + lon +
+      "&hourly=apparent_temperature,precipitation_probability,wind_speed_10m,uv_index,cloud_cover,visibility,is_day" +
+      "&timezone=auto&forecast_days=2&wind_speed_unit=kmh";
+
+    fetch(url).then(function (r) {
+      if (!r.ok) throw new Error("Forecast service returned " + r.status);
+      return r.json();
+    }).then(function (d) {
+      var H = d.hourly;
+      var nowLocal = new Date(Date.now() + d.utc_offset_seconds * 1000).toISOString().slice(0, 13) + ":00";
+      var start = H.time.findIndex(function (t) { return t >= nowLocal; });
+      if (start < 0) start = 0;
+      var hours = [];
+      for (var i = start; i < Math.min(start + 24, H.time.length); i++) {
+        hours.push({
+          time: H.time[i],
+          feels: H.apparent_temperature[i],
+          rain: H.precipitation_probability[i] || 0,
+          wind: H.wind_speed_10m[i],
+          uv: H.uv_index[i] || 0,
+          cloud: H.cloud_cover[i] || 0,
+          vis: (H.visibility[i] == null ? 20000 : H.visibility[i]) / 1000,
+          isDay: H.is_day[i] === 1
+        });
+      }
+      state.hours = hours;
+      render();
+    }).catch(function (e) {
+      document.getElementById("out").innerHTML = '<p class="msg err"></p>';
+      document.querySelector("#out .err").textContent = "Could not load the forecast. Check your connection and try again. (" + e.message + ")";
+    });
+  }
+
+  // ---------- render ----------
+  function hourLabel(t) { return t.slice(11, 13) + ":00"; }
+
+  function render() {
+    var a = ACTIVITIES.filter(function (x) { return x.id === state.activity; })[0];
+    var out = document.getElementById("out");
+    if (!state.hours.length) return;
+
+    var scored = state.hours.map(function (h) { var r = scoreHour(h, a); return { h: h, score: r.score, note: r.note }; });
+
+    // best 2-hour window
+    var bestI = 0, bestAvg = -1;
+    for (var i = 0; i < scored.length - 1; i++) {
+      var avg = (scored[i].score + scored[i + 1].score) / 2;
+      if (avg > bestAvg) { bestAvg = avg; bestI = i; }
+    }
+    var w1 = scored[bestI], w2 = scored[bestI + 1] || w1;
+    var avgScore = Math.round(bestAvg);
+
+    out.innerHTML = "";
+
+    var best = document.createElement("div");
+    best.className = "best";
+    if (avgScore <= 0) {
+      best.innerHTML = '<div class="label">Best time</div><div class="time">None in the next 24 h</div>';
+    } else {
+      var endH = String((parseInt(w2.h.time.slice(11, 13), 10) + 1) % 24).padStart(2, "0") + ":00";
+      best.innerHTML =
+        '<div class="label">Best time for ' + a.label.toLowerCase() + '</div>' +
+        '<div class="row"><div class="time">' + hourLabel(w1.h.time) + " – " + endH + '</div>' +
+        '<span class="badge ' + band(avgScore) + '">' + avgScore + " · " + bandName(avgScore) + '</span></div>' +
+        '<div class="facts">' + Math.round(w1.h.feels) + "°C feels like · " + w1.h.rain + "% rain · " +
+        Math.round(w1.h.wind) + " km/h wind · UV " + Math.round(w1.h.uv) + '</div>';
+    }
+    out.appendChild(best);
+
+    var list = document.createElement("div");
+    list.className = "list";
+    list.style.marginTop = "16px";
+    scored.forEach(function (r) {
+      var row = document.createElement("div");
+      row.className = "hour";
+      var t = document.createElement("span"); t.className = "t"; t.textContent = hourLabel(r.h.time);
+      var bar = document.createElement("div"); bar.className = "bar";
+      var fill = document.createElement("i");
+      fill.style.width = Math.max(r.score, 2) + "%";
+      fill.style.background = bandColor(r.score);
+      bar.appendChild(fill);
+      var v = document.createElement("span"); v.className = "v"; v.textContent = r.score;
+      var n = document.createElement("span"); n.className = "n";
+      n.textContent = r.note + " · " + Math.round(r.h.feels) + "°C";
+      row.appendChild(t); row.appendChild(bar); row.appendChild(v); row.appendChild(n);
+      list.appendChild(row);
+    });
+    out.appendChild(list);
+  }
+
+  // ---------- chips ----------
+  var chips = document.getElementById("chips");
+  function drawChips() {
+    chips.innerHTML = "";
+    ACTIVITIES.forEach(function (a) {
+      var b = document.createElement("button");
+      b.type = "button"; b.className = "chip"; b.textContent = a.label;
+      b.setAttribute("aria-pressed", String(a.id === state.activity));
+      b.addEventListener("click", function () {
+        state.activity = a.id; store("ow-activity", a.id); drawChips(); render();
+      });
+      chips.appendChild(b);
+    });
+  }
+
+  // ---------- location ----------
+  document.getElementById("gps").addEventListener("click", function () {
+    var btn = this;
+    if (!navigator.geolocation) { alert_("This browser can't share your location. Search a city instead."); return; }
+    btn.textContent = "Locating...";
+    navigator.geolocation.getCurrentPosition(function (p) {
+      btn.textContent = "Use my location";
+      load(p.coords.latitude.toFixed(3), p.coords.longitude.toFixed(3), "Near you");
+    }, function () {
+      btn.textContent = "Use my location";
+      alert_("Location is blocked or unavailable here. Search a city instead.");
+    }, { timeout: 10000, maximumAge: 600000 });
+  });
+
+  function alert_(text) {
+    document.getElementById("out").innerHTML = '<p class="msg err"></p>';
+    document.querySelector("#out .err").textContent = text;
+  }
+
+  var results = document.getElementById("results");
+  document.getElementById("searchForm").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var q = document.getElementById("q").value.trim();
+    if (!q) return;
+    fetch("https://geocoding-api.open-meteo.com/v1/search?count=5&language=en&name=" + encodeURIComponent(q))
+      .then(function (r) { return r.json(); })
+      .then(function (d) {
+        results.innerHTML = "";
+        var list = d.results || [];
+        if (!list.length) { results.hidden = false; results.innerHTML = '<p class="msg">No match. Try another spelling.</p>'; return; }
+        list.forEach(function (c) {
+          var b = document.createElement("button");
+          b.type = "button";
+          b.textContent = c.name + (c.admin1 ? ", " + c.admin1 : "") + (c.country ? ", " + c.country : "");
+          b.addEventListener("click", function () {
+            results.hidden = true;
+            document.getElementById("q").value = "";
+            load(c.latitude, c.longitude, b.textContent);
+          });
+          results.appendChild(b);
+        });
+        results.hidden = false;
+      }).catch(function () {
+        results.hidden = false;
+        results.innerHTML = '<p class="msg err">Search failed. Check your connection.</p>';
+      });
+  });
+
+  // ---------- start ----------
+  var savedAct = recall("ow-activity");
+  if (savedAct && ACTIVITIES.some(function (a) { return a.id === savedAct; })) state.activity = savedAct;
+  drawChips();
+  var saved = recall("ow-place");
+  if (saved && saved.lat != null) load(saved.lat, saved.lon, saved.name);
+})();
+</script>
+</body>
+</html>
